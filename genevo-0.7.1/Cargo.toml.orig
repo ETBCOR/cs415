@@ -1,0 +1,72 @@
+[package]
+name = "genevo"
+version = "0.7.1"
+authors = ["haraldmaida"]
+license = "MIT/Apache-2.0"
+description = """
+genevo provides building blocks to run simulations of optimization and search problems using
+genetic algorithms (GA).
+
+Execute genetic algorithm (GA) simulations in a customizable and extensible way.
+"""
+keywords = ["genetic", "evolutionary", "algorithm"]
+repository = "https://github.com/innoave/genevo"
+documentation = "https://docs.rs/genevo"
+#homepage = "https://innoave.github.io/genevo"
+readme = "README.md"
+
+edition = "2021"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+wasm-bindgen = ["wasm-bindgen_", "chrono/wasmbind"]
+
+[dependencies]
+chrono = "0.4"
+rand = { version = "0.8", default-features = false, features = ["getrandom"] }
+rand_xoshiro = "0.6"
+fixedbitset = { version = "0.4", optional = true }
+smallvec = { version = "1", optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rayon = "1"
+
+[target.'cfg(all(target_arch = "wasm32", not(any(target_os = "emscripten", target_os = "wasi"))))'.dependencies]
+wasm-bindgen_ = { version = "0.2", package = "wasm-bindgen", optional = true }
+getrandom = { version = "0.2", features = ["js", "wasm-bindgen"] }
+
+[dev-dependencies]
+criterion = "0.3"
+galvanic-assert = "0.8"
+proptest = "1"
+version-sync = "0.9"
+
+[lib]
+bench = false
+
+[[bench]]
+name = "index_of_value_in_vector"
+harness = false
+
+[[bench]]
+name = "genome_builder"
+harness = false
+
+[[bench]]
+name = "population_builder"
+harness = false
+
+[[example]]
+name = "knapsack"
+path = "examples/knapsack/main.rs"
+required-features = [ "smallvec" ]
+
+[[example]]
+name = "monkeys"
+path = "examples/monkeys/main.rs"
+
+[[example]]
+name = "queens"
+path = "examples/queens/main.rs"
