@@ -1,0 +1,1 @@
+GeneticAlgorithm<Vec<Nucleotide>, usize, FitnessCalc, genevo::operator::prelude::MaximizeSelector, SinglePointCrossBreeder, RandomValueMutator<Vec<Nucleotide>>, ElitistReinserter<Vec<Nucleotide>, usize, FitnessCalc>>
