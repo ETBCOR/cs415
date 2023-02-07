@@ -158,9 +158,9 @@ fn breed(parents: (&Vec<Nucleotide>, &Vec<Nucleotide>), genome_size: u32) -> (Ve
     let parents = (parents.0.iter().enumerate(), parents.1.iter().enumerate());
     let mut children = (Vec::<Nucleotide>::new(), Vec::<Nucleotide>::new());
     
-    for i in 0..split {
-        children.0.push(parents.1.next());
-    }
+    //for i in 0..split {
+        //children.0.push(parents.1.next());
+    //}
     
     children
 }

@@ -168,7 +168,7 @@ fn main() {
                     processing_time.fmt(),
                     step.result.evaluated_population.individuals().iter().map(|x| x.as_phenome()).collect::<Vec<String>>()
                 );
-                println!("      {}", best_solution.solution.genome.as_phenome());
+                println!("\t{}", best_solution.solution.genome.as_phenome());
                 break;
             }
             Err(error) => {
