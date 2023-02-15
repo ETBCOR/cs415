@@ -1,12 +1,9 @@
 [package]
-name = "project01"
+name = "plot_test"
 version = "0.1.0"
-authors = ["corg7983@vandals.uidaho.edu"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rand = "0.8"
-genevo = "0.7"
 plotters = "0.3.4"
