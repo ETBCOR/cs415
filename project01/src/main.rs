@@ -17,14 +17,15 @@ use std::{
     time::{Duration, Instant},
 };
 
+
 // Output file paths
 const OUT_FILE: &'static str = "output/0.png";
 
 // Unchangable simulation parameters
 const STRAND_SIZE: usize = 100;
-const POPULATION_SIZE: usize = 500;
+const POPULATION_SIZE: usize = 250;
 const GENERATION_LIMIT: u64 = 16384; // 2^14
-const BATCH_SIZE: u64 = 32;
+const BATCH_SIZE: u64 = 16;
 // The Parameter struct defines the changable parameters need to run a simulation
 #[derive(Debug, Clone, Copy)]
 struct Parameters<'a> {
@@ -193,10 +194,11 @@ impl GenomeBuilder<Genome> for RandomStrandBuilder {
     }
 }
 
-type Data = Vec<(u32, u32)>;
+type Data = Vec<u32>;
+type DataSetWithLables = Vec<(String, Data)>;
 
 // Runs a simulation based on a set of give parameters
-fn run_sim_from_parms(parms: &Parameters, thread_number: u64) -> Option<Data> {
+fn run_sim_from_parms(parms: &Parameters, thread_number: Option<u64>) -> Option<Data> {
     let initial_population: Population<Genome> = build_population()
         .with_genome_builder(RandomStrandBuilder)
         .of_size(POPULATION_SIZE)
@@ -229,11 +231,17 @@ fn run_sim_from_parms(parms: &Parameters, thread_number: u64) -> Option<Data> {
         ))
         .build();
 
-    println!(
-        "[thread #{}]: Starting a simulation with {} parameters.",
-        thread_number, parms.parms_name
-    );
-
+    match thread_number {
+        Some(n) => println!(
+            "[thread #{}]: Starting a simulation with {} parameters.",
+            n, parms.parms_name
+        ),
+        None => println!(
+            "Starting a simulation with {} parameters.",
+            parms.parms_name
+        ),
+    }
+    
     let mut data = vec![];
 
     loop {
@@ -241,58 +249,74 @@ fn run_sim_from_parms(parms: &Parameters, thread_number: u64) -> Option<Data> {
         match result {
             Ok(SimResult::Intermediate(step)) => {
                 let best_fitness = step.result.best_solution.solution.fitness;
-                data.push((step.iteration as u32, best_fitness as u32));
+                data.push(best_fitness as u32);
             }
             Ok(SimResult::Final(step, _, _, _)) => {
                 let best_fitness = step.result.best_solution.solution.fitness;
                 if best_fitness == ClustersOf4FitnessCalculator.highest_possible_fitness() {
-                    println!(
-                        "[thread #{}]: Optimal solution was found after {} generations.",
-                        thread_number, step.iteration
-                    )
+                    match thread_number {
+                        Some(n) => println!(
+                            "[thread #{}]: Optimal solution was found after {} generations.",
+                            n, step.iteration
+                        ),
+                        None => println!(
+                            "Optimal solution was found after {} generations.",
+                            step.iteration
+                        ),
+                    }  
                 } else {
-                    println!(
-                        "[thread #{}]: Optimal solution was not found after the max of {} generations.",
-                        thread_number, step.iteration
-                    );
+                    match thread_number {
+                        Some(n) => println!(
+                            "[thread #{}]: Optimal solution was not found after the max of {} generations.",
+                            n, step.iteration
+                        ),
+                        None => println!(
+                            "Optimal solution was not found after the max of {} generations.",
+                            step.iteration
+                        ),
+                    }
                 }
-                data.push((step.iteration as u32, best_fitness as u32));
+                data.push(best_fitness as u32);
                 return Some(data);
             }
             Err(error) => {
-                println!("[thread #{}]: {}", thread_number, error);
+                match thread_number {
+                    Some(n) => println!("[thread #{}]: {}", n, error),
+                    None => println!("{}", error),
+                }
                 return None;
             }
         }
     }
 }
 
-fn run_sim_batch_from_parms(parms: &Parameters, runs: u64) {
+fn run_sim_batch_from_parms(parms: &Parameters) -> Option<Data> {
     // Create a thread scope for parms
     thread::scope(|scope| {
         let start_time = Instant::now();
         let parms = Arc::new(parms);
         let sum = Arc::new(Mutex::new(0));
+        let mut data: Vec<Data> = vec![];
         let mut handles = vec![];
 
         // Create a pool of threads
         println!(
             "[thread pool]: Creating threadpool with {} parameters of size {}.",
-            parms.parms_name, runs
+            parms.parms_name, BATCH_SIZE
         );
-        for i in 1..=runs {
+        for i in 1..=BATCH_SIZE {
+            thread::sleep(Duration::from_millis(i * 20));
             let parms = Arc::downgrade(&parms);
             let sum = Arc::clone(&sum);
-            let handle = scope.spawn(move || -> Option<_> {
-                thread::sleep(Duration::from_millis(i * 20));
+            let handle = scope.spawn(move || -> Option<Data> {
                 let parms = parms.upgrade()?;
-                let data = run_sim_from_parms(&parms, i)?;
-                if (*data.last()?).1 as usize
+                let data = run_sim_from_parms(&parms, Some(i))?;
+                if (*data.last()?) as usize
                     == ClustersOf4FitnessCalculator.highest_possible_fitness()
                 {
                     let mut sum = sum.lock().unwrap();
                     *sum += data.len();
-                    Some(())
+                    Some(data)
                 } else {
                     None
                 }
@@ -301,25 +325,45 @@ fn run_sim_batch_from_parms(parms: &Parameters, runs: u64) {
         }
 
         for handle in handles {
-            if handle.join().unwrap() == None {
-                println!(
-                    "[thread pool]: With {} parameters, optimal solution was not always found within the generation limit!",
-                    parms.parms_name
-                );
-                return;
+            match handle.join().unwrap() {
+                Some(h) => data.push(h),
+                None => {
+                    println!(
+                        "[thread pool]: With {} parameters, optimal solution was not always found within the generation limit!",
+                        parms.parms_name
+                    );
+                    return None;
+                },
             }
         }
 
-        let avg = (*sum.lock().unwrap() as f64 / runs as f64).round();
-        // Some(avg)
+        let avg = (*sum.lock().unwrap() as f64 / BATCH_SIZE as f64).round();
+        
+        let max_size = data.iter().map(|d| d.len()).max().unwrap();
+        let mut combined_data = vec![0; max_size];
+        for (i, d) in combined_data.iter_mut().enumerate() {
+            for s in data.iter() {
+                *d += if i < s.len() {
+                    s[i]
+                } else {
+                    ClustersOf4FitnessCalculator.highest_possible_fitness() as u32
+                };
+            }
+            *d = (*d as f64 / BATCH_SIZE as f64) as u32;
+        }
+        dbg!(&combined_data);
+
         println!(
             "[thread pool]: With {} paremeters, a perfect solution was found in all {} simulations, at generation {} on average. Batch took {} seconds.",
-            parms.parms_name, runs, avg, start_time.elapsed().as_secs()
+            parms.parms_name, BATCH_SIZE, avg, start_time.elapsed().as_secs()
         );
+        Some(combined_data)
     }) // thread::scope
 }
 
-fn generate_graph(data: Data, out_file: &'static str) -> Result<(), Box<dyn std::error::Error>> {
+fn generate_graph(dataset: DataSetWithLables, out_file: &'static str) -> Result<(), Box<dyn std::error::Error>> {
+    let gens = dataset.first().unwrap().1.len() as u32;
+
     let root = BitMapBackend::new(out_file, (640, 480)).into_drawing_area();
     root.fill(&WHITE)?;
 
@@ -329,18 +373,20 @@ fn generate_graph(data: Data, out_file: &'static str) -> Result<(), Box<dyn std:
         .x_label_area_size(30)
         .y_label_area_size(30)
         .build_cartesian_2d(
-            1 as u32..data.len() as u32,
+            1 as u32..gens,
             ClustersOf4FitnessCalculator.lowest_possible_fitness() as u32
                 ..ClustersOf4FitnessCalculator.highest_possible_fitness() as u32,
         )?;
 
     chart.configure_mesh().disable_x_mesh().x_labels(8).draw()?;
 
-    chart
-        .draw_series(LineSeries::new(data.iter().map(|(x, y)| (*x, *y)), &RED))?
-        .label("v1")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
-
+    for (label, data) in dataset.iter() {
+        let data = data.iter().enumerate();
+        chart
+            .draw_series(LineSeries::new(data.map(|(x, y)| (x as u32, *y)), &RED))?
+            .label(label)
+            .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
+    }
     chart
         .configure_series_labels()
         .background_style(&WHITE.mix(0.8))
@@ -356,7 +402,7 @@ fn main() {
     assert_eq!(STRAND_SIZE % 4, 0);
 
     let parms_default = Parameters::default();
-    let parms_16_indiv_per_parent = Parameters {
+    let _parms_16_indiv_per_parent = Parameters {
         parms_name: "16-individuals-per-parent",
         num_individuals_per_parents: 16,
         selection_ratio: parms_default.selection_ratio,
@@ -364,9 +410,10 @@ fn main() {
         reinsertion_ratio: parms_default.reinsertion_ratio,
     };
 
-    //run_sim_batch_from_parms(&parms_default, BATCH_SIZE);
-    //run_sim_batch_from_parms(&parms_16_indiv_per_parent, BATCH_SIZE);
+    let data = run_sim_batch_from_parms(&parms_default).unwrap();
+    //run_sim_batch_from_parms(&parms_16_indiv_per_parent);
     //generate_graph(OUT_FILE).unwrap();
 
-    generate_graph(run_sim_from_parms(&parms_default, 0).unwrap(), OUT_FILE).unwrap();
+    // let data = run_sim_from_parms(&parms_default, None).unwrap();
+    generate_graph(vec![("Test".to_string(), data)], OUT_FILE).unwrap();
 }
