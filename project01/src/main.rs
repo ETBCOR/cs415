@@ -23,6 +23,7 @@ const OUT_VAR_NUM_INDIV: &'static str = "output/variation_over_num_indiv.png";
 const OUT_VAR_SELECTION: &'static str = "output/variation_over_selection_ratio.png";
 const OUT_VAR_MUTATION: &'static str = "output/variation_over_mutation_rate.png";
 const OUT_VAR_REINSERTION: &'static str = "output/variation_over_reinsertion_ratio.png";
+const OUT_BEST_OF_EACH: &'static str = "output/best_value_of_each_varied_parameter.png";
 
 // Unchanging simulation parameters
 const STRAND_SIZE: usize = 100;
@@ -46,6 +47,7 @@ enum Variation {
     Selection,
     Mutation,
     Reinsertion,
+    BestOfEach,
 }
 
 impl<'a> Parameters {
@@ -119,6 +121,14 @@ impl<'a> Parameters {
                 n[3].parms_name = "reinsertion_ratio = 0.75".to_string();
                 n[4].reinsertion_ratio = 0.9;
                 n[4].parms_name = "reinsertion_ratio = 0.90".to_string();
+            }
+            Variation::BestOfEach => {
+                n.truncate(1);
+                n[0].parms_name = "best of each varied parameter".to_string();
+                n[0].num_individuals_per_parents = 64;
+                n[0].selection_ratio = 1.0;
+                n[0].mutation_rate = 0.01;
+                n[0].reinsertion_ratio = 0.1;
             }
         }
         n
@@ -581,17 +591,19 @@ fn generate_graph(
 
     chart.configure_mesh().disable_x_mesh().x_labels(5).draw()?;
 
+    // Draw each line in the dataset
     for (i, (label, data)) in dataset.iter().enumerate() {
         let data = data.iter().enumerate();
         let color = Palette99::pick(i).mix(0.6);
         chart
             .draw_series(LineSeries::new(
-                data.map(|(x, y)| (x as u32, *y)),
+                data.map(|(x, y)| (x as u32 + 1, *y)),
                 color.stroke_width(2),
             ))?
             .label(label.clone())
             .legend(move |(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], color.filled()));
     }
+
     chart
         .configure_series_labels()
         .label_font(("Consolas", 18).into_font())
@@ -619,7 +631,7 @@ fn main() {
     assert_eq!(STRAND_SIZE % 4, 0);
 
     let start_time = Instant::now();
-
+/*
     generate_graph_with_variation("Default Parameters", Variation::None, OUT_DEFAULT).unwrap();
 
     generate_graph_with_variation(
@@ -649,6 +661,9 @@ fn main() {
         OUT_VAR_REINSERTION,
     )
     .unwrap();
+*/
+
+    generate_graph_with_variation("Using Best Value of Each Varied Parameter", Variation::BestOfEach, OUT_BEST_OF_EACH).unwrap();
 
     println!(
         "Finished execution in {} seconds!",
