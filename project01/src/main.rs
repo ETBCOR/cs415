@@ -14,32 +14,43 @@ use rand::{
 use std::{
     sync::{Arc, Mutex},
     thread,
-    time::{Duration, Instant},
+    time::Instant,
 };
 
-
 // Output file paths
-const OUT_FILE: &'static str = "output/0.png";
+const OUT_DEFAULT: &'static str = "output/default_parameters.png";
+const OUT_VAR_NUM_INDIV: &'static str = "output/variation_over_num_indiv.png";
+const OUT_VAR_SELECTION: &'static str = "output/variation_over_selection_ratio.png";
+const OUT_VAR_MUTATION: &'static str = "output/variation_over_mutation_rate.png";
+const OUT_VAR_REINSERTION: &'static str = "output/variation_over_reinsertion_ratio.png";
 
-// Unchangable simulation parameters
+// Unchanging simulation parameters
 const STRAND_SIZE: usize = 100;
-const POPULATION_SIZE: usize = 250;
+const POPULATION_SIZE: usize = 256;
 const GENERATION_LIMIT: u64 = 16384; // 2^14
-const BATCH_SIZE: u64 = 16;
-// The Parameter struct defines the changable parameters need to run a simulation
-#[derive(Debug, Clone, Copy)]
-struct Parameters<'a> {
-    parms_name: &'a str,
+const BATCH_SIZE: u64 = 8;
+
+// The Parameter struct defines the changing parameters need to run a simulation
+#[derive(Debug, Clone)]
+struct Parameters {
+    parms_name: String,
     num_individuals_per_parents: usize,
     selection_ratio: f64,
     mutation_rate: f64,
     reinsertion_ratio: f64,
 }
 
-/* impl<'a> Parameters<'a> {
-    fn new(
-        parms_name: &'a str,
-        population_size: usize,
+enum Variation {
+    None,
+    NumIdiv,
+    Selection,
+    Mutation,
+    Reinsertion,
+}
+
+impl<'a> Parameters {
+    /*fn new(
+        parms_name: String,
         num_individuals_per_parents: usize,
         selection_ratio: f64,
         mutation_rate: f64,
@@ -47,19 +58,77 @@ struct Parameters<'a> {
     ) -> Self {
         Self {
             parms_name,
-            population_size,
             num_individuals_per_parents,
             selection_ratio,
             mutation_rate,
             reinsertion_ratio,
         }
-    }
-} */
+    }*/
 
-impl<'a> Default for Parameters<'a> {
+    fn new_with_variation(var: Variation) -> Vec<Self> {
+        let mut n = vec![Self::default(); 5];
+
+        match var {
+            Variation::None => {
+                n.truncate(1);
+            }
+            Variation::NumIdiv => {
+                n[0].num_individuals_per_parents = 2; // default
+                n[0].parms_name = "num_indiv_per_parent = 2 (default)".to_string();
+                n[1].num_individuals_per_parents = 4;
+                n[1].parms_name = "num_indiv_per_parent = 4".to_string();
+                n[2].num_individuals_per_parents = 16;
+                n[2].parms_name = "num_indiv_per_parent = 16".to_string();
+                n[3].num_individuals_per_parents = 32;
+                n[3].parms_name = "num_indiv_per_parent = 32".to_string();
+                n[4].num_individuals_per_parents = 64;
+                n[4].parms_name = "num_indiv_per_parent = 64".to_string();
+            }
+            Variation::Selection => {
+                n[0].selection_ratio = 0.1;
+                n[0].parms_name = "selection_ratio = 0.10".to_string();
+                n[1].selection_ratio = 0.25;
+                n[1].parms_name = "selection_ratio = 0.25".to_string();
+                n[2].selection_ratio = 0.5; // default
+                n[2].parms_name = "selection_ratio = 0.50 (default)".to_string();
+                n[3].selection_ratio = 0.75;
+                n[3].parms_name = "selection_ratio = 0.75".to_string();
+                n[4].selection_ratio = 1.0;
+                n[4].parms_name = "selection_ratio = 1.00".to_string();
+            }
+            Variation::Mutation => {
+                n[0].mutation_rate = 0.001;
+                n[0].parms_name = "mutation_rate = 0.001".to_string();
+                n[1].mutation_rate = 0.005;
+                n[1].parms_name = "mutation_rate = 0.005".to_string();
+                n[2].mutation_rate = 0.01;
+                n[2].parms_name = "mutation_rate = 0.010".to_string();
+                n[3].mutation_rate = 0.05; // default
+                n[3].parms_name = "mutation_rate = 0.050 (default)".to_string();
+                n[4].mutation_rate = 0.06;
+                n[4].parms_name = "mutation_rate = 0.060".to_string();
+            }
+            Variation::Reinsertion => {
+                n[0].reinsertion_ratio = 0.1;
+                n[0].parms_name = "reinsertion_ratio = 0.10".to_string();
+                n[1].reinsertion_ratio = 0.25;
+                n[1].parms_name = "reinsertion_ratio = 0.25".to_string();
+                n[2].reinsertion_ratio = 0.5; // default
+                n[2].parms_name = "reinsertion_ratio = 0.50 (default)".to_string();
+                n[3].reinsertion_ratio = 0.75;
+                n[3].parms_name = "reinsertion_ratio = 0.75".to_string();
+                n[4].reinsertion_ratio = 0.9;
+                n[4].parms_name = "reinsertion_ratio = 0.90".to_string();
+            }
+        }
+        n
+    }
+}
+
+impl Default for Parameters {
     fn default() -> Self {
         Self {
-            parms_name: "default",
+            parms_name: "default".to_string(),
             num_individuals_per_parents: 2,
             selection_ratio: 0.5,
             mutation_rate: 0.05,
@@ -198,7 +267,7 @@ type Data = Vec<u32>;
 type DataSetWithLables = Vec<(String, Data)>;
 
 // Runs a simulation based on a set of give parameters
-fn run_sim_from_parms(parms: &Parameters, thread_number: Option<u64>) -> Option<Data> {
+fn run_sim_from_parms(parms: &Parameters, thread_number: Option<u64>) -> Option<DataSetWithLables> {
     let initial_population: Population<Genome> = build_population()
         .with_genome_builder(RandomStrandBuilder)
         .of_size(POPULATION_SIZE)
@@ -241,59 +310,74 @@ fn run_sim_from_parms(parms: &Parameters, thread_number: Option<u64>) -> Option<
             parms.parms_name
         ),
     }
-    
+
+    // Stores the best fitness value at each iteration of the simulation
     let mut data = vec![];
 
+    // Iterate the simulation
     loop {
         let result = sim.step();
         match result {
             Ok(SimResult::Intermediate(step)) => {
                 let best_fitness = step.result.best_solution.solution.fitness;
+                // println!("parms: {} best_fitness: {}", parms.parms_name, best_fitness);
+
+                // Push this intermediate result's best fitness to the vector
                 data.push(best_fitness as u32);
             }
             Ok(SimResult::Final(step, _, _, _)) => {
                 let best_fitness = step.result.best_solution.solution.fitness;
+
+                // Push the final result's best fitness to the vector
+                data.push(best_fitness as u32);
+
+                // Print information about the final result
                 if best_fitness == ClustersOf4FitnessCalculator.highest_possible_fitness() {
                     match thread_number {
                         Some(n) => println!(
-                            "[thread #{}]: Optimal solution was found after {} generations.",
-                            n, step.iteration
+                            "[thread #{}]: Optimal solution was found after {} generations with {} paremeters.",
+                            n, step.iteration, parms.parms_name
                         ),
                         None => println!(
-                            "Optimal solution was found after {} generations.",
-                            step.iteration
+                            "Optimal solution was found after {} generations with {} paremeters.",
+                            step.iteration, parms.parms_name
                         ),
-                    }  
+                    }
                 } else {
                     match thread_number {
                         Some(n) => println!(
-                            "[thread #{}]: Optimal solution was not found after the max of {} generations.",
-                            n, step.iteration
+                            "[thread #{}]: Optimal solution was not found after the max of {} generations with {} parameters.",
+                            n, step.iteration, parms.parms_name
                         ),
                         None => println!(
-                            "Optimal solution was not found after the max of {} generations.",
-                            step.iteration
+                            "Optimal solution was not found after the max of {} generations with {} parameters.",
+                            step.iteration, parms.parms_name
                         ),
                     }
                 }
-                data.push(best_fitness as u32);
-                return Some(data);
+
+                // Because this result was final, return the data
+                return Some(vec![(parms.parms_name.clone(), data)]);
             }
             Err(error) => {
                 match thread_number {
                     Some(n) => println!("[thread #{}]: {}", n, error),
                     None => println!("{}", error),
                 }
+
+                // Return the none varient if we encouter an error
                 return None;
             }
         }
     }
 }
 
-fn run_sim_batch_from_parms(parms: &Parameters) -> Option<Data> {
+#[allow(dead_code)]
+fn run_sim_batch_from_parms(parms: &Parameters) -> Option<DataSetWithLables> {
     // Create a thread scope for parms
     thread::scope(|scope| {
-        let start_time = Instant::now();
+        // let start_time = Instant::now();
+
         let parms = Arc::new(parms);
         let sum = Arc::new(Mutex::new(0));
         let mut data: Vec<Data> = vec![];
@@ -301,16 +385,17 @@ fn run_sim_batch_from_parms(parms: &Parameters) -> Option<Data> {
 
         // Create a pool of threads
         println!(
-            "[thread pool]: Creating threadpool with {} parameters of size {}.",
-            parms.parms_name, BATCH_SIZE
+            "[thread pool]: Creating a threadpool (batch size: {}) with parameters: {}",
+            BATCH_SIZE, parms.parms_name
         );
         for i in 1..=BATCH_SIZE {
-            thread::sleep(Duration::from_millis(i * 20));
             let parms = Arc::downgrade(&parms);
             let sum = Arc::clone(&sum);
+
+            // Spawn a new thread
             let handle = scope.spawn(move || -> Option<Data> {
                 let parms = parms.upgrade()?;
-                let data = run_sim_from_parms(&parms, Some(i))?;
+                let data = run_sim_from_parms(&parms, Some(i))?.first()?.1.clone();
                 if (*data.last()?) as usize
                     == ClustersOf4FitnessCalculator.highest_possible_fitness()
                 {
@@ -324,21 +409,22 @@ fn run_sim_batch_from_parms(parms: &Parameters) -> Option<Data> {
             handles.push(handle);
         }
 
+        // Wait for all the threads to finish
         for handle in handles {
             match handle.join().unwrap() {
-                Some(h) => data.push(h),
+                Some(d) => data.push(d),
                 None => {
                     println!(
                         "[thread pool]: With {} parameters, optimal solution was not always found within the generation limit!",
                         parms.parms_name
                     );
                     return None;
-                },
+                }
             }
         }
 
         let avg = (*sum.lock().unwrap() as f64 / BATCH_SIZE as f64).round();
-        
+
         let max_size = data.iter().map(|d| d.len()).max().unwrap();
         let mut combined_data = vec![0; max_size];
         for (i, d) in combined_data.iter_mut().enumerate() {
@@ -351,44 +437,164 @@ fn run_sim_batch_from_parms(parms: &Parameters) -> Option<Data> {
             }
             *d = (*d as f64 / BATCH_SIZE as f64) as u32;
         }
-        dbg!(&combined_data);
 
         println!(
-            "[thread pool]: With {} paremeters, a perfect solution was found in all {} simulations, at generation {} on average. Batch took {} seconds.",
-            parms.parms_name, BATCH_SIZE, avg, start_time.elapsed().as_secs()
+            "[thread pool]: With {} paremeters, a perfect solution was found in all {} simulations, at generation {} on average",//. Batch took {} seconds.",
+            parms.parms_name, BATCH_SIZE, avg//, start_time.elapsed().as_secs()
         );
-        Some(combined_data)
+        Some(vec![(parms.parms_name.clone(), combined_data)])
     }) // thread::scope
 }
 
-fn generate_graph(dataset: DataSetWithLables, out_file: &'static str) -> Result<(), Box<dyn std::error::Error>> {
+fn run_sim_batch_from_parms_list(parms_list: &Vec<Parameters>) -> Option<DataSetWithLables> {
+    println!("num of parms in the parm list: {}", parms_list.len());
+    // Create a thread scope for parms
+    thread::scope(|scope| {
+        // let start_time = Instant::now();
+
+        let parms_list = parms_list
+            .iter()
+            .map(|p| Arc::new(p))
+            .collect::<Vec<Arc<&Parameters>>>();
+        let sums_list = vec![Arc::new(Mutex::new(0)); parms_list.len()];
+        let mut data_list: Vec<Vec<Data>> = vec![vec![]; parms_list.len()];
+        let mut handles = vec![];
+
+        // Create a pool of threads
+        println!(
+            "[thread pool]: Creating a threadpool (batch size: {}) with a parameters list: {:?}",
+            BATCH_SIZE, parms_list
+        );
+        for i in 0..BATCH_SIZE {
+            for (j, parms) in parms_list.iter().enumerate() {
+                let parms = Arc::downgrade(&parms);
+                let sum = Arc::clone(&sums_list[j]);
+
+                // Spawn a new thread
+                let handle = scope.spawn(move || -> (usize, Option<Data>) {
+                    let parms = match parms.upgrade() {
+                        Some(parms) => parms,
+                        None => return (j, None),
+                    };
+
+                    let data =
+                        match run_sim_from_parms(&parms, Some((j as u64 * BATCH_SIZE + i) + 1)) {
+                            Some(data) => data,
+                            None => return (j, None),
+                        };
+                    let data = match data.first() {
+                        Some(data) => data,
+                        None => return (j, None),
+                    }
+                    .1
+                    .clone();
+
+                    if (*match data.last() {
+                        Some(l) => l,
+                        None => return (j, None),
+                    }) as usize
+                        == ClustersOf4FitnessCalculator.highest_possible_fitness()
+                    {
+                        let mut sum = sum.lock().unwrap();
+                        *sum += data.len();
+                        (j, Some(data))
+                    } else {
+                        (j, None)
+                    }
+                });
+                handles.push(handle);
+            }
+        }
+
+        // Wait for all the threads to finish
+        for handle in handles {
+            match handle.join().unwrap() {
+                (i, Some(d)) => {
+                    println!("[thread pool]: Thread #{} finished.", i);
+                    data_list[i].push(d);
+                }
+                (i, None) => {
+                    println!(
+                        "[thread pool]: With {} parameters, optimal solution was not always found within the generation limit!",
+                        parms_list[i].parms_name
+                    );
+                    return None;
+                }
+            }
+        }
+
+        let mut combined_data_list = vec![];
+
+        for (i, data) in data_list.iter().enumerate() {
+            let _avg = (*sums_list[i].lock().unwrap() as f64 / BATCH_SIZE as f64).round();
+
+            let max_size = data.iter().map(|d| d.len()).max().unwrap();
+            let mut combined_data = vec![0; max_size];
+            for (i, d) in combined_data.iter_mut().enumerate() {
+                for s in data.iter() {
+                    *d += if i < s.len() {
+                        s[i]
+                    } else {
+                        ClustersOf4FitnessCalculator.highest_possible_fitness() as u32
+                    };
+                }
+                *d = (*d as f64 / BATCH_SIZE as f64) as u32;
+            }
+            combined_data_list.push((parms_list[i].parms_name.clone(), combined_data));
+        }
+
+        let max_size = combined_data_list
+            .iter()
+            .map(|(_, d)| d.len())
+            .max()
+            .unwrap();
+        for (_, combined_data) in combined_data_list.iter_mut() {
+            while combined_data.len() < max_size {
+                combined_data.push(ClustersOf4FitnessCalculator.highest_possible_fitness() as u32);
+            }
+        }
+
+        Some(combined_data_list)
+    }) // thread::scope
+}
+
+fn generate_graph(
+    graph_name: &str,
+    dataset: DataSetWithLables,
+    out_file: &'static str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let gens = dataset.first().unwrap().1.len() as u32;
 
-    let root = BitMapBackend::new(out_file, (640, 480)).into_drawing_area();
+    let root = BitMapBackend::new(out_file, (800, 600)).into_drawing_area();
     root.fill(&WHITE)?;
 
     let mut chart = ChartBuilder::on(&root)
-        .caption("caption", ("sans-serif", 32).into_font())
-        .margin(5)
-        .x_label_area_size(30)
-        .y_label_area_size(30)
+        .caption(graph_name, ("Consolas", 40).into_font())
+        .margin(10)
+        .x_label_area_size(20)
+        .y_label_area_size(20)
         .build_cartesian_2d(
             1 as u32..gens,
             ClustersOf4FitnessCalculator.lowest_possible_fitness() as u32
                 ..ClustersOf4FitnessCalculator.highest_possible_fitness() as u32,
         )?;
 
-    chart.configure_mesh().disable_x_mesh().x_labels(8).draw()?;
+    chart.configure_mesh().disable_x_mesh().x_labels(5).draw()?;
 
-    for (label, data) in dataset.iter() {
+    for (i, (label, data)) in dataset.iter().enumerate() {
         let data = data.iter().enumerate();
+        let color = Palette99::pick(i).mix(0.6);
         chart
-            .draw_series(LineSeries::new(data.map(|(x, y)| (x as u32, *y)), &RED))?
-            .label(label)
-            .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
+            .draw_series(LineSeries::new(
+                data.map(|(x, y)| (x as u32, *y)),
+                color.stroke_width(2),
+            ))?
+            .label(label.clone())
+            .legend(move |(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], color.filled()));
     }
     chart
         .configure_series_labels()
+        .label_font(("Consolas", 18).into_font())
         .background_style(&WHITE.mix(0.8))
         .border_style(&BLACK)
         .draw()?;
@@ -398,22 +604,54 @@ fn generate_graph(dataset: DataSetWithLables, out_file: &'static str) -> Result<
     Ok(())
 }
 
+fn generate_graph_with_variation(
+    graph_name: &str,
+    variation: Variation,
+    out_file: &'static str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let parms_list = Parameters::new_with_variation(variation);
+    let data = run_sim_batch_from_parms_list(&parms_list).unwrap();
+    generate_graph(graph_name, data, out_file)?;
+    Ok(())
+}
+
 fn main() {
     assert_eq!(STRAND_SIZE % 4, 0);
 
-    let parms_default = Parameters::default();
-    let _parms_16_indiv_per_parent = Parameters {
-        parms_name: "16-individuals-per-parent",
-        num_individuals_per_parents: 16,
-        selection_ratio: parms_default.selection_ratio,
-        mutation_rate: parms_default.mutation_rate,
-        reinsertion_ratio: parms_default.reinsertion_ratio,
-    };
+    let start_time = Instant::now();
 
-    let data = run_sim_batch_from_parms(&parms_default).unwrap();
-    //run_sim_batch_from_parms(&parms_16_indiv_per_parent);
-    //generate_graph(OUT_FILE).unwrap();
+    generate_graph_with_variation("Default Parameters", Variation::None, OUT_DEFAULT).unwrap();
 
-    // let data = run_sim_from_parms(&parms_default, None).unwrap();
-    generate_graph(vec![("Test".to_string(), data)], OUT_FILE).unwrap();
+    generate_graph_with_variation(
+        "Various Numbers of Individuals Per Parent",
+        Variation::NumIdiv,
+        OUT_VAR_NUM_INDIV,
+    )
+    .unwrap();
+
+    generate_graph_with_variation(
+        "Various Selection Ratios",
+        Variation::Selection,
+        OUT_VAR_SELECTION,
+    )
+    .unwrap();
+
+    generate_graph_with_variation(
+        "Various Mutation Rates",
+        Variation::Mutation,
+        OUT_VAR_MUTATION,
+    )
+    .unwrap();
+
+    generate_graph_with_variation(
+        "Various Reinsertion Ratios",
+        Variation::Reinsertion,
+        OUT_VAR_REINSERTION,
+    )
+    .unwrap();
+
+    println!(
+        "Finished execution in {} seconds!",
+        start_time.elapsed().as_secs()
+    );
 }
