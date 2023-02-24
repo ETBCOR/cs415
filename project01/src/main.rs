@@ -21,11 +21,11 @@ use std::{
 
 // Output file paths and flags for whether or not to generate the file
 const OUT_DEFAULT: (&'static str, bool) = ("output/default_parameters.png", true);
-const OUT_BEST_OF_EACH: (&'static str, bool) = ("output/best_of_each_varied_parm.png", true);
 const OUT_VAR_NUM_INDIV: (&'static str, bool) = ("output/various_num_indivs.png", true);
 const OUT_VAR_SELECTION: (&'static str, bool) = ("output/various_selection_ratios.png", true);
 const OUT_VAR_MUTATION: (&'static str, bool) = ("output/various_mutation_rates.png", true);
 const OUT_VAR_REINSERTION: (&'static str, bool) = ("output/various_reinsertion_ratios.png", true);
+const OUT_BEST_OF_EACH: (&'static str, bool) = ("output/best_of_each_varied_parm.png", true);
 
 // Unchanging simulation parameters
 const STRAND_SIZE: usize = 100;
@@ -47,11 +47,11 @@ struct Parameters {
 enum Variation {
     #[default]
     Default,
-    BestOfEach,
     NumIdiv(Vec<usize>),
     Selection(Vec<f64>),
     Mutation(Vec<f64>),
     Reinsertion(Vec<f64>),
+    BestOfEach,
 }
 
 impl<'a> Parameters {
@@ -61,15 +61,6 @@ impl<'a> Parameters {
         match var {
             Variation::Default => {
                 parms_list.push(Parameters::default());
-            }
-            Variation::BestOfEach => {
-                parms_list.push(Parameters {
-                    parms_name: "best of each varied parm".to_string(),
-                    num_individuals_per_parents: 128,
-                    selection_ratio: 1.0,
-                    mutation_rate: 0.01,
-                    reinsertion_ratio: 0.1,
-                });
             }
             Variation::NumIdiv(v) => {
                 for x in v {
@@ -134,6 +125,15 @@ impl<'a> Parameters {
                     p.reinsertion_ratio = *x;
                     parms_list.push(p);
                 }
+            }
+            Variation::BestOfEach => {
+                parms_list.push(Parameters {
+                    parms_name: "best of each varied parm".to_string(),
+                    num_individuals_per_parents: 128,
+                    selection_ratio: 1.0,
+                    mutation_rate: 0.01,
+                    reinsertion_ratio: 0.1,
+                });
             }
         }
         parms_list
@@ -595,22 +595,15 @@ fn main() {
     assert_eq!(STRAND_SIZE % 4, 0);
 
     delete_file(OUT_DEFAULT);
-    delete_file(OUT_BEST_OF_EACH);
     delete_file(OUT_VAR_NUM_INDIV);
     delete_file(OUT_VAR_SELECTION);
     delete_file(OUT_VAR_MUTATION);
     delete_file(OUT_VAR_REINSERTION);
+    delete_file(OUT_BEST_OF_EACH);
 
     let start_time = Instant::now();
 
     generate_graph_from_variation("Default Parameters", Variation::Default, OUT_DEFAULT).unwrap();
-
-    generate_graph_from_variation(
-        "Using Best Value of Each Varied Parameter",
-        Variation::BestOfEach,
-        OUT_BEST_OF_EACH,
-    )
-    .unwrap();
 
     generate_graph_from_variation(
         "Various Numbers of Individuals Per Parent",
@@ -637,6 +630,13 @@ fn main() {
         "Various Reinsertion Ratios",
         Variation::Reinsertion(vec![0.01, 0.1, 0.25, 0.5, 0.75, 0.9]),
         OUT_VAR_REINSERTION,
+    )
+    .unwrap();
+
+    generate_graph_from_variation(
+        "Using Best Value of Each Varied Parameter",
+        Variation::BestOfEach,
+        OUT_BEST_OF_EACH,
     )
     .unwrap();
 
