@@ -30,7 +30,7 @@ const OUT_BEST_OF_EACH: (&'static str, bool) = ("output/best_of_each_varied_parm
 // Unchanging simulation parameters
 const STRAND_SIZE: usize = 100;
 const POPULATION_SIZE: usize = 256;
-const GENERATION_LIMIT: u64 = 16384; // 2^14
+const GENERATION_LIMIT: u64 = 16_384; // 2^14
 const BATCH_SIZE: u64 = 16;
 
 // The Parameter struct defines the changing parameters need to run a simulation
@@ -603,38 +603,39 @@ fn main() {
 
     let start_time = Instant::now();
 
-    generate_graph_from_variation("Default Parameters", Variation::Default, OUT_DEFAULT).unwrap();
+    generate_graph_from_variation("3.1: Default Parameters", Variation::Default, OUT_DEFAULT)
+        .unwrap();
 
     generate_graph_from_variation(
-        "Various Numbers of Individuals Per Parent",
+        "3.2: Various Numbers of Individuals Per Parent",
         Variation::NumIdiv(vec![2, 4, 8, 16, 32, 64, 128]),
         OUT_VAR_NUM_INDIV,
     )
     .unwrap();
 
     generate_graph_from_variation(
-        "Various Selection Ratios",
+        "3.3: Various Selection Ratios",
         Variation::Selection(vec![0.25, 0.5, 1.0, 2.0, 4.0, 8.0]),
         OUT_VAR_SELECTION,
     )
     .unwrap();
 
     generate_graph_from_variation(
-        "Various Mutation Rates",
+        "3.4: Various Mutation Rates",
         Variation::Mutation(vec![0.001, 0.005, 0.01, 0.025, 0.05]),
         OUT_VAR_MUTATION,
     )
     .unwrap();
 
     generate_graph_from_variation(
-        "Various Reinsertion Ratios",
+        "3.5: Various Reinsertion Ratios",
         Variation::Reinsertion(vec![0.01, 0.1, 0.25, 0.5, 0.75, 0.9]),
         OUT_VAR_REINSERTION,
     )
     .unwrap();
 
     generate_graph_from_variation(
-        "Using Best Value of Each Varied Parameter",
+        "3.6: Using Best Value of Each Varied Parameter",
         Variation::BestOfEach,
         OUT_BEST_OF_EACH,
     )
